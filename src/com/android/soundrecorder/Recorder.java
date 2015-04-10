@@ -57,9 +57,14 @@ public class Recorder implements OnCompletionListener, OnErrorListener {
     
     MediaRecorder mRecorder = null;
     MediaPlayer mPlayer = null;
-    
+    int mSamplingRate=48000;
+
     public Recorder() {
     }
+
+	public void setAudioSamplingRate(int rate){
+		mSamplingRate=rate;
+	}
     
     public void saveState(Bundle recorderState) {
         recorderState.putString(SAMPLE_PATH_KEY, mSampleFile.getAbsolutePath());
@@ -143,7 +148,7 @@ public class Recorder implements OnCompletionListener, OnErrorListener {
         signalStateChanged(IDLE_STATE);
     }
     
-    public void startRecording(int outputfileformat, String extension, Context context) {
+     public void startRecording(int outputfileformat, int recordingType,String extension, Context context) {
         stop();
         
         if (mSampleFile == null) {
@@ -162,8 +167,32 @@ public class Recorder implements OnCompletionListener, OnErrorListener {
         mRecorder = new MediaRecorder();
         mRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
         mRecorder.setOutputFormat(outputfileformat);
-        mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
         mRecorder.setOutputFile(mSampleFile.getAbsolutePath());
+
+		mRecorder.setAudioSamplingRate(mSamplingRate);
+		switch (recordingType) {
+				case MediaRecorder.AudioEncoder.AAC:
+					mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+					mRecorder.setAudioEncodingBitRate(SoundRecorder.BITRATE_AAC);
+					mRecorder.setAudioSamplingRate(SoundRecorder.SAMPLE_RATE_AAC);
+					mRecorder.setAudioChannels(2);
+					break;
+		
+				case MediaRecorder.AudioEncoder.AMR_WB:
+					mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+					mRecorder.setAudioEncodingBitRate(SoundRecorder.BITRATE_AWB);
+					mRecorder.setAudioSamplingRate(SoundRecorder.SAMPLE_RATE_AWB);
+					break;
+		
+				case MediaRecorder.AudioEncoder.AMR_NB:
+					mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+					mRecorder.setAudioEncodingBitRate(SoundRecorder.BITRATE_AMR);
+					break;
+				
+				default:
+					break;
+		
+		}
 
         // Handle IOException
         try {

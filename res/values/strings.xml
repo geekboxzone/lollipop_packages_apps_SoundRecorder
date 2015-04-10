@@ -41,6 +41,8 @@
     <!-- label shown when there is less than 1 minute of space left to record -->
     <string name="sec_available"><xliff:g id="seconds">%d</xliff:g>s available</string>
 
+    <!-- label shown when there is more than 1 minute but less than 9 minutes of space left to record -->
+    <string name="min_sec_available"><xliff:g id="minutes">%d</xliff:g> min <xliff:g id="seconds">%d</xliff:g>s available</string>
     <!-- button to accept the current recording and return it to the caller -->
     <string name="accept">Done</string>
     <!-- button to discard the current recording and return to the caller -->
@@ -67,4 +69,18 @@
     <string name="error_app_internal">Internal application error.</string>
     <!-- shown as the message in a dialog when the recording could not be added to the media database -->
     <string name="error_mediadb_new_record">Couldn\'t save recorded audio.</string>
+
+	<string name="cancel">Cancel</string>
+	<string name="recording_format_high">High</string>
+	<string name="recording_format_mid">Mid</string>
+	<string name="recording_format_low">Low</string>
+
+	<string name="voice_quality">Voice quality</string>
+	<string name="recording_mode">Recording mode</string>
+	<string name="select_voice_quality">Select voice quality</string>
+	<string name="select_recording_mode">Select recording mode</string>
+	<string name="recording_mode_nomal">Normal</string>
+
+	<string name="recording_mode_meeting">Meeting</string>
+	<string name="recording_mode_lecture">Lecture</string>
 </resources>

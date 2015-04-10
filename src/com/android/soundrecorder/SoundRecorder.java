@@ -50,6 +50,11 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.app.Dialog;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
+import android.view.Menu;
+import android.view.MenuItem;
 
 /**
  * Calculates remaining recording time based on available disk space and
@@ -204,9 +209,23 @@ public class SoundRecorder extends Activity
     static final String AUDIO_AMR = "audio/amr";
     static final String AUDIO_ANY = "audio/*";
     static final String ANY_ANY = "*/*";
+	static final String AUDIO_AWB = "audio/awb";
+    static final String AUDIO_AAC = "audio/aac";
     
     static final int BITRATE_AMR =  5900; // bits/sec
-    static final int BITRATE_3GPP = 5900;
+
+	static final int BITRATE_3GPP = 12200;
+    static final int BITRATE_AWB = 96024;
+    static final int BITRATE_AAC = 128000;
+
+
+    static final int SAMPLE_RATE_AAC = 48000;
+    static final int SAMPLE_RATE_AWB = 32000;
+    static final int SAMPLE_RATE_AMR = 8000;
+
+	private static final int BIT_RATE = 8;
+
+	static final String SOUND_RECORDER_DATA = "sound_recorder_data";
     
     WakeLock mWakeLock;
     String mRequestedType = AUDIO_ANY;
@@ -241,6 +260,37 @@ public class SoundRecorder extends Activity
     VUMeter mVUMeter;
     private BroadcastReceiver mSDCardMountEventReceiver = null;
 
+    private Menu mMenu;
+    private static final int OPTIONMENU_SELECT_FORMAT = 0;
+    // add the recording mode menu
+    private static final int OPTIONMENU_SELECT_MODE = 1;
+
+    private static final int CHANNEL_CHOOSE_DIALOG = 1;
+    private static final int MODE_CHOOSE_DIALOG = 4;
+
+	private SharedPreferences mPrefs;
+	
+    private boolean HAVE_AACENCODE_FEATURE=true;
+    private boolean HAVE_VORBISENC_FEATURE=false;
+    private boolean HAVE_AWBENCODE_FEATURE=true;
+    private boolean MTK_AUDIO_HD_REC_SUPPORT=false;
+
+    static final int HIGH = 0;
+    static final int MID = 1;
+    static final int LOW = 2;
+    static final int NORMAL = 0;
+    static final int INDOOR = 1;
+    static final int OUTDOOR = 2;
+    private int mSelectedFormat = -1;// current recording format:high=0/mid/low
+    private int mSelectedMode = -1;
+
+    static final String SELECTED_RECORDING_FORMAT = "selected_recording_format";
+    // add recording mode **
+    static final String SELECTED_RECORDING_MODE = "selected_recording_mode";
+    static final String BYTE_RATE = "byte_rate";
+
+	private int mByteRate;
+
     @Override
     public void onCreate(Bundle icycle) {
         super.onCreate(icycle);
@@ -248,7 +298,7 @@ public class SoundRecorder extends Activity
         Intent i = getIntent();
         if (i != null) {
             String s = i.getType();
-            if (AUDIO_AMR.equals(s) || AUDIO_3GPP.equals(s) || AUDIO_ANY.equals(s)
+            if (AUDIO_AAC.equals(s) ||AUDIO_AMR.equals(s) || AUDIO_3GPP.equals(s) || AUDIO_ANY.equals(s)
                     || ANY_ANY.equals(s)) {
                 mRequestedType = s;
             } else if (s != null) {
@@ -273,10 +323,10 @@ public class SoundRecorder extends Activity
         mRecorder.setOnStateChangedListener(this);
         mRemainingTimeCalculator = new RemainingTimeCalculator();
 
-        PowerManager pm 
-            = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        mWakeLock = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, 
-                                    "SoundRecorder");
+        PowerManager pm
+                = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        mWakeLock = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK,
+                "SoundRecorder");
 
         initResourceRefs();
         
@@ -288,8 +338,19 @@ public class SoundRecorder extends Activity
                 mRecorder.restoreState(recorderState);
                 mSampleInterrupted = recorderState.getBoolean(SAMPLE_INTERRUPTED_KEY, false);
                 mMaxFileSize = recorderState.getLong(MAX_FILE_SIZE_KEY, -1);
+
+				if (0 != mByteRate) {
+                    mRemainingTimeCalculator.setBitRate(mByteRate * BIT_RATE);
+                }
             }
         }
+
+		if (null == mPrefs) {
+            mPrefs = getSharedPreferences(SOUND_RECORDER_DATA, 0);
+        }
+		mSelectedFormat = mPrefs.getInt(SELECTED_RECORDING_FORMAT, LOW);
+        mSelectedMode = mPrefs.getInt(SELECTED_RECORDING_MODE, NORMAL);
+        mByteRate = mPrefs.getInt(BYTE_RATE, 0);
         
         updateUi();
     }
@@ -318,6 +379,193 @@ public class SoundRecorder extends Activity
         
         outState.putBundle(RECORDER_STATE_KEY, recorderState);
     }
+
+	@Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        super.onPrepareOptionsMenu(menu);
+        mMenu = menu;
+
+        return true;
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        super.onCreateOptionsMenu(menu);
+		if (HAVE_AACENCODE_FEATURE || HAVE_AWBENCODE_FEATURE
+						|| HAVE_VORBISENC_FEATURE) {
+					menu.add(0, OPTIONMENU_SELECT_FORMAT, 0,
+							getString(R.string.voice_quality));
+					if (MTK_AUDIO_HD_REC_SUPPORT) {
+						menu.add(0, OPTIONMENU_SELECT_MODE, 0,
+								getString(R.string.recording_mode));
+					}
+				}
+
+		Log.i(TAG,"onCreateOptionsMenu");
+
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        if (OPTIONMENU_SELECT_FORMAT == id) {
+            showDialog(CHANNEL_CHOOSE_DIALOG);
+        } else if (OPTIONMENU_SELECT_MODE == id) {
+            showDialog(MODE_CHOOSE_DIALOG);
+        }
+        return true;
+    }
+    @Override
+    protected Dialog onCreateDialog(int id, Bundle args) {
+        AlertDialog chooseDialog;
+        switch (id) {
+            case CHANNEL_CHOOSE_DIALOG:
+                chooseDialog = dlgChooseChannel();
+                break;
+            case MODE_CHOOSE_DIALOG:
+                chooseDialog = modeChooseDialog();
+                break;
+            default:
+                chooseDialog = null;
+                break;
+        }
+        return chooseDialog;
+    }
+    protected AlertDialog dlgChooseChannel() {
+        CharSequence[] encodeFormatArray = null;
+
+        if ((HAVE_AACENCODE_FEATURE) || (HAVE_VORBISENC_FEATURE)) {
+            if (HAVE_AWBENCODE_FEATURE) {
+                encodeFormatArray = new CharSequence[3];
+                if (HAVE_VORBISENC_FEATURE) {
+                    encodeFormatArray[0] = getString(R.string.recording_format_high)
+                            + "(.ogg)";
+                } else if (HAVE_AACENCODE_FEATURE) {
+                    encodeFormatArray[0] = getString(R.string.recording_format_high)
+                            + "(.3gpp)";
+                }
+                // encodeFormatArray[0] =
+                // getString(R.string.recording_format_high)+"(.3gpp)";
+                encodeFormatArray[1] = getString(R.string.recording_format_mid)
+                        + "(.3gpp)";
+                encodeFormatArray[2] = getString(R.string.recording_format_low)
+                        + "(.amr)";
+            } else {
+                encodeFormatArray = new CharSequence[2];
+                if (HAVE_VORBISENC_FEATURE) {
+                    encodeFormatArray[0] = getString(R.string.recording_format_high)
+                            + "(.ogg)";
+                } else if (HAVE_AACENCODE_FEATURE) {
+                    encodeFormatArray[0] = getString(R.string.recording_format_high)
+                            + "(.3gpp)";
+                }
+                // encodeFormatArray[0] =
+                // getString(R.string.recording_format_high)+"(.3gpp)";
+                encodeFormatArray[1] = getString(R.string.recording_format_low)
+                        + "(.amr)";
+            }
+        } else if (HAVE_AWBENCODE_FEATURE) {
+            encodeFormatArray = new CharSequence[2];
+            if (HAVE_VORBISENC_FEATURE) {
+                encodeFormatArray[0] = getString(R.string.recording_format_high)
+                        + "(.ogg)";
+            } else if (HAVE_AACENCODE_FEATURE) {
+                encodeFormatArray[0] = getString(R.string.recording_format_high)
+                        + "(.3gpp)";
+            }
+
+            encodeFormatArray[1] = getString(R.string.recording_format_low)
+                    + "(.amr)";
+        } else {
+            Log.e(TAG, "No featureOption enable");
+        }
+
+        // Resources mResources = this.getResources();
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(R.string.select_voice_quality)
+                .setSingleChoiceItems(encodeFormatArray, mSelectedFormat,
+                        new DialogInterface.OnClickListener() {
+
+                            public void onClick(DialogInterface dialog,
+                                                int which) {
+                                switch (which) {
+                                    case 0:
+                                        if ((HAVE_AACENCODE_FEATURE)
+                                                || (HAVE_VORBISENC_FEATURE)) {
+                                            mSelectedFormat = HIGH;
+                                        } else if (HAVE_AWBENCODE_FEATURE) {
+                                            mSelectedFormat = MID;// mid
+                                        } else {
+                                            Log.e(TAG,
+                                                    "No featureOption enable");
+                                        }
+                                        break;
+
+                                    case 1:
+                                        if ((HAVE_AACENCODE_FEATURE)
+                                                || (HAVE_VORBISENC_FEATURE)) {
+                                            if (HAVE_AWBENCODE_FEATURE) {
+                                                mSelectedFormat = MID;
+                                            } else {
+                                                mSelectedFormat = LOW;
+                                            }
+                                        } else if (HAVE_AWBENCODE_FEATURE) {
+                                            mSelectedFormat = LOW;
+                                        } else {
+                                            Log.e(TAG,
+                                                    "No featureOption enable");
+                                        }
+                                        break;
+
+                                    case 2:
+                                        mSelectedFormat = LOW;// low
+                                        break;
+
+                                    default:
+                                        break;
+                                }
+                                dialog.dismiss();
+                            }
+                        }).setNegativeButton(getString(R.string.cancel), null);
+
+        return builder.create();
+    }
+
+    protected AlertDialog modeChooseDialog() {
+        CharSequence[] modeArray = null;
+        modeArray = new CharSequence[3];
+        modeArray[0] = getString(R.string.recording_mode_nomal);
+        modeArray[1] = getString(R.string.recording_mode_meeting);
+        modeArray[2] = getString(R.string.recording_mode_lecture);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(getString(R.string.select_recording_mode))
+                .setSingleChoiceItems(modeArray, mSelectedMode,
+                        new DialogInterface.OnClickListener() {
+
+                            public void onClick(DialogInterface dialog,
+                                                int which) {
+                                switch (which) {
+                                    case 0:
+                                        mSelectedMode = NORMAL;
+                                        break;
+                                    case 1:
+                                        mSelectedMode = INDOOR;
+                                        break;
+                                    case 2:
+                                        mSelectedMode = OUTDOOR;
+                                        break;
+                                    default:
+                                        break;
+                                }
+                                dialog.dismiss();
+                            }
+                        }).setNegativeButton(getString(R.string.cancel), null);
+
+        return builder.create();
+    }
+
     
     /*
      * Whenever the UI is re-created (due f.ex. to orientation change) we have
@@ -368,6 +616,9 @@ public class SoundRecorder extends Activity
 
         switch (button.getId()) {
             case R.id.recordButton:
+				if (mMenu != null) {
+         		   mMenu.close();
+		        }
                 mRemainingTimeCalculator.reset();
                 if (!Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
                     mSampleInterrupted = true;
@@ -380,16 +631,78 @@ public class SoundRecorder extends Activity
                 } else {
                     stopAudioPlayback();
 
+		            // set the recording mode
+		            if (MTK_AUDIO_HD_REC_SUPPORT) {
+		                switch (mSelectedMode) {
+		                case NORMAL:
+		                    mRecorder.setAudioSamplingRate(SAMPLE_RATE_AMR);
+		                    break;
+		                case INDOOR:
+		                    mRecorder.setAudioSamplingRate(SAMPLE_RATE_AWB);
+		                    break;
+		                case OUTDOOR:
+		                    mRecorder.setAudioSamplingRate(SAMPLE_RATE_AAC);
+		                    break;
+		                default:
+		                    break;
+		                }
+		            }
+					int outputFileFormat = MediaRecorder.OutputFormat.AMR_NB;
+	    	        int recordingType = MediaRecorder.AudioEncoder.AMR_NB;
+    	    	    String extension = ".amr";	
+
                     if (AUDIO_AMR.equals(mRequestedType)) {
                         mRemainingTimeCalculator.setBitRate(BITRATE_AMR);
-                        mRecorder.startRecording(MediaRecorder.OutputFormat.AMR_NB, ".amr", this);
-                    } else if (AUDIO_3GPP.equals(mRequestedType)) {
+                        outputFileFormat = MediaRecorder.OutputFormat.AMR_NB;
+	    	            recordingType = MediaRecorder.AudioEncoder.AMR_NB;
+    	    	        extension = ".amr";
+                        //mRecorder.startRecording(MediaRecorder.OutputFormat.AMR_NB,MediaRecorder.AudioEncoder.AMR_NB, ".amr", this);
+                    } else if (AUDIO_AWB.equals(mRequestedType)) {
+		                mRemainingTimeCalculator.setBitRate(BITRATE_AWB);
+		                outputFileFormat = MediaRecorder.OutputFormat.THREE_GPP;
+		                recordingType = MID;
+		                extension = ".awb";
+					} else if (AUDIO_AAC.equals(mRequestedType)) {
+		                mRemainingTimeCalculator.setBitRate(BITRATE_AAC);
+		                outputFileFormat = MediaRecorder.OutputFormat.AAC_ADTS;
+		                recordingType = MediaRecorder.AudioEncoder.AAC;
+		                extension = ".aac";
+					}else if (AUDIO_3GPP.equals(mRequestedType)) {
                         mRemainingTimeCalculator.setBitRate(BITRATE_3GPP);
-                        mRecorder.startRecording(MediaRecorder.OutputFormat.THREE_GPP, ".3gpp",
-                                this);
+                        switch (mSelectedFormat) {
+		                case HIGH:
+		                    if (HAVE_AACENCODE_FEATURE) {
+		                        mRemainingTimeCalculator.setBitRate(BITRATE_AAC);
+		                        outputFileFormat = MediaRecorder.OutputFormat.THREE_GPP;
+		                        recordingType = MediaRecorder.AudioEncoder.AAC;
+		                        extension = ".3gpp";
+		                    }
+		                    break;
+
+		                case MID:
+		                    mRemainingTimeCalculator.setBitRate(BITRATE_AWB);
+		                    outputFileFormat = MediaRecorder.OutputFormat.THREE_GPP;
+		                    recordingType = MediaRecorder.AudioEncoder.AMR_WB;
+		                    extension = ".3gpp";
+		                    break;
+
+		                case LOW:
+		                    mRemainingTimeCalculator.setBitRate(BITRATE_AMR);
+		                    outputFileFormat = MediaRecorder.OutputFormat.AMR_NB;
+		                    recordingType = MediaRecorder.AudioEncoder.AMR_NB;
+		                    extension = ".amr";
+		                    break;
+
+		                default:
+		                    break;
+		                }
                     } else {
                         throw new IllegalArgumentException("Invalid output file type requested");
                     }
+
+					
+				   mRecorder.startRecording(outputFileFormat, recordingType,
+						   extension, this);
                     
                     if (mMaxFileSize != -1) {
                         mRemainingTimeCalculator.setFileSizeLimit(
@@ -451,6 +764,14 @@ public class SoundRecorder extends Activity
     protected void onPause() {
         mSampleInterrupted = mRecorder.state() == Recorder.RECORDING_STATE;
         mRecorder.stop();
+
+		if (null == mPrefs) {
+				mPrefs = getSharedPreferences(SOUND_RECORDER_DATA, 0);
+		}
+		SharedPreferences.Editor ed = mPrefs.edit();
+		ed.putInt(SELECTED_RECORDING_FORMAT, mSelectedFormat);
+		ed.putInt(SELECTED_RECORDING_MODE, mSelectedMode);		
+		ed.commit();
         
         super.onPause();
     }
@@ -579,10 +900,10 @@ public class SoundRecorder extends Activity
         if (uri == null) {
             new AlertDialog.Builder(this)
                 .setTitle(R.string.app_name)
-                .setMessage(R.string.error_mediadb_new_record)
-                .setPositiveButton(R.string.button_ok, null)
-                .setCancelable(false)
-                .show();
+               .setMessage(R.string.error_mediadb_new_record)
+               .setPositiveButton(R.string.button_ok, null)
+               .setCancelable(false)
+               .show();
         }
         return uri;
     }
@@ -622,11 +943,11 @@ public class SoundRecorder extends Activity
         Uri result = resolver.insert(base, cv);
         if (result == null) {
             new AlertDialog.Builder(this)
-                .setTitle(R.string.app_name)
-                .setMessage(R.string.error_mediadb_new_record)
-                .setPositiveButton(R.string.button_ok, null)
-                .setCancelable(false)
-                .show();
+                    .setTitle(R.string.app_name)
+                    .setMessage(R.string.error_mediadb_new_record)
+                    .setPositiveButton(R.string.button_ok, null)
+                    .setCancelable(false)
+                    .show();
             return null;
         }
         if (getPlaylistId(res) == -1) {
@@ -679,12 +1000,12 @@ public class SoundRecorder extends Activity
             int limit = mRemainingTimeCalculator.currentLowerLimit();
             switch (limit) {
                 case RemainingTimeCalculator.DISK_SPACE_LIMIT:
-                    mErrorUiMessage 
-                        = getResources().getString(R.string.storage_is_full);
+                    mErrorUiMessage
+                            = getResources().getString(R.string.storage_is_full);
                     break;
                 case RemainingTimeCalculator.FILE_SIZE_LIMIT:
-                    mErrorUiMessage 
-                        = getResources().getString(R.string.max_length_reached);
+                    mErrorUiMessage
+                            = getResources().getString(R.string.max_length_reached);
                     break;
                 default:
                     mErrorUiMessage = null;
@@ -701,7 +1022,9 @@ public class SoundRecorder extends Activity
         if (t < 60)
             timeStr = String.format(res.getString(R.string.sec_available), t);
         else if (t < 540)
-            timeStr = String.format(res.getString(R.string.min_available), t/60 + 1);
+            // timeStr = String.format(res.getString(R.string.min_available), t/60 + 1);
+            timeStr = String.format(res.getString(R.string.min_sec_available), t/60 ,t%60);
+
         
         mStateMessage1.setText(timeStr);
     }
@@ -850,11 +1173,11 @@ public class SoundRecorder extends Activity
         }
         if (message != null) {
             new AlertDialog.Builder(this)
-                .setTitle(R.string.app_name)
-                .setMessage(message)
-                .setPositiveButton(R.string.button_ok, null)
-                .setCancelable(false)
-                .show();
+                    .setTitle(R.string.app_name)
+                    .setMessage(message)
+                    .setPositiveButton(R.string.button_ok, null)
+                    .setCancelable(false)
+                    .show();
         }
     }
 }
