@@ -44,7 +44,9 @@
     <!-- label shown when there is more than 1 minute but less than 9 minutes of space left to record -->
     <string name="min_sec_available"><xliff:g id="minutes">%d</xliff:g> min <xliff:g id="seconds">%d</xliff:g>s available</string>
     <!-- button to accept the current recording and return it to the caller -->
-    <string name="accept">Done</string>
+    <string name="accept">Save in Phone</string>
+    <string name="no_sd">SD card is unmount!</string>     
+    <string name="accept_sd">Save in SD card</string>
     <!-- button to discard the current recording and return to the caller -->
     <string name="discard">Discard</string>
     <!-- acknowlegement button in a number of dialogs -->

@@ -55,6 +55,18 @@ import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.os.Environment;
+import android.os.storage.StorageManager;
+import android.widget.Toast;
+
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * Calculates remaining recording time based on available disk space and
@@ -226,6 +238,9 @@ public class SoundRecorder extends Activity
 	private static final int BIT_RATE = 8;
 
 	static final String SOUND_RECORDER_DATA = "sound_recorder_data";
+
+	public static String sdcard_dir = "/mnt/external_sd";
+    private static StorageManager mStorageManager = null;
     
     WakeLock mWakeLock;
     String mRequestedType = AUDIO_ANY;
@@ -256,6 +271,7 @@ public class SoundRecorder extends Activity
     
     LinearLayout mExitButtons;
     Button mAcceptButton;
+	Button mAcceptButtonSD;
     Button mDiscardButton;
     VUMeter mVUMeter;
     private BroadcastReceiver mSDCardMountEventReceiver = null;
@@ -294,7 +310,9 @@ public class SoundRecorder extends Activity
     @Override
     public void onCreate(Bundle icycle) {
         super.onCreate(icycle);
-
+		if (mStorageManager == null) {
+			mStorageManager = (StorageManager) getSystemService(Context.STORAGE_SERVICE);
+		}
         Intent i = getIntent();
         if (i != null) {
             String s = i.getType();
@@ -583,6 +601,7 @@ public class SoundRecorder extends Activity
         mTimerView = (TextView) findViewById(R.id.timerView);
         
         mExitButtons = (LinearLayout) findViewById(R.id.exitButtons);
+		mAcceptButtonSD = (Button) findViewById(R.id.acceptButtonSD);
         mAcceptButton = (Button) findViewById(R.id.acceptButton);
         mDiscardButton = (Button) findViewById(R.id.discardButton);
         mVUMeter = (VUMeter) findViewById(R.id.uvMeter);
@@ -590,6 +609,7 @@ public class SoundRecorder extends Activity
         mRecordButton.setOnClickListener(this);
         mPlayButton.setOnClickListener(this);
         mStopButton.setOnClickListener(this);
+		mAcceptButtonSD.setOnClickListener(this);
         mAcceptButton.setOnClickListener(this);
         mDiscardButton.setOnClickListener(this);
 
@@ -721,6 +741,10 @@ public class SoundRecorder extends Activity
                 saveSample();
                 finish();
                 break;
+			case R.id.acceptButtonSD:
+                mRecorder.stop();
+                saveSampleSD();
+                break;
             case R.id.discardButton:
                 mRecorder.delete();
                 finish();
@@ -775,6 +799,66 @@ public class SoundRecorder extends Activity
         
         super.onPause();
     }
+
+    /*
+     * add by liupengfei
+     * If we have just recorded a smaple, this add it to the sd card 
+     */
+    private void saveSampleSD() {
+      	File recorderFile         = null;
+      	String strOutFileNamePath = null;
+    	  if (mRecorder.sampleLength() == 0)
+            return;
+        if(!isMountSD()){
+        	Toast.makeText(getApplicationContext(), getString(R.string.no_sd), Toast.LENGTH_LONG).show();
+        	return;
+        }else{
+	         try {
+		         recorderFile = mRecorder.sampleFile();
+		    	   strOutFileNamePath = sdcard_dir+"/"+recorderFile.getName();
+	    	     Log.e("liupengfei","strOutFileNamePath = "+strOutFileNamePath);
+	           copyFileToSD(recorderFile,strOutFileNamePath);
+	           mRecorder.delete();
+	           finish();
+	         } catch(Exception ex) {  
+	    	   	
+	            return;
+	          }
+        	}
+    	}
+	  /*
+	   *add by liupengfei 
+	   *to check sd mount
+	   */
+		public static boolean isMountSD(){
+			String status = mStorageManager.getVolumeState(sdcard_dir);
+			Log.e("liupengfei","isMountSD()--status-->" + status);
+			if (status.equals(Environment.MEDIA_MOUNTED)) {
+				return true;
+			}
+			return false;
+		}
+		/*
+	   *add by liupengfei 
+	   *to coype recorder file to sd card
+	   */
+    private void copyFileToSD(File inFile , String strOutFileName) throws IOException 
+    {  
+        InputStream myInput;  
+        OutputStream myOutput = new FileOutputStream(strOutFileName);  
+        myInput = new FileInputStream(inFile);
+        byte[] buffer = new byte[1024];  
+        int length = myInput.read(buffer);
+        while(length > 0)
+        {
+            myOutput.write(buffer, 0, length); 
+            length = myInput.read(buffer);
+        }
+        
+        myOutput.flush();  
+        myInput.close();  
+        myOutput.close();        
+    }	
 
     /*
      * If we have just recorded a smaple, this adds it to the media data base
