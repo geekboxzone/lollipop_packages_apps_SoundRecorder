@@ -67,6 +67,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import android.text.TextUtils;
 
 /**
  * Calculates remaining recording time based on available disk space and
@@ -743,7 +744,23 @@ public class SoundRecorder extends Activity
                 break;
 			case R.id.acceptButtonSD:
                 mRecorder.stop();
-                saveSampleSD();
+                String sdPath = saveSampleSD();
+                if(!TextUtils.isEmpty(sdPath)){
+                    try {
+                    	Uri uri = null;
+                        uri = addToMediaDB(new File(sdPath));
+                        setResult(RESULT_OK, new Intent().setData(uri));
+                        finish();
+                    } catch(Exception ex) {  // Database manipulation failure
+                    	Toast.makeText(this,R.string.error_mediadb_new_record , Toast.LENGTH_SHORT).show();
+                    	setResult(RESULT_CANCELED, null);
+                    	finish();
+                    	Log.e(TAG,"addToMediaDB error:"+ex.getMessage());
+                        return;
+                    }                    
+                }else{                	
+                	Toast.makeText(this,R.string.error_mediadb_new_record , Toast.LENGTH_SHORT).show();
+                }
                 break;
             case R.id.discardButton:
                 mRecorder.delete();
@@ -804,14 +821,14 @@ public class SoundRecorder extends Activity
      * add by liupengfei
      * If we have just recorded a smaple, this add it to the sd card 
      */
-    private void saveSampleSD() {
+    private String saveSampleSD() {
       	File recorderFile         = null;
       	String strOutFileNamePath = null;
     	  if (mRecorder.sampleLength() == 0)
-            return;
+            return "";
         if(!isMountSD()){
         	Toast.makeText(getApplicationContext(), getString(R.string.no_sd), Toast.LENGTH_LONG).show();
-        	return;
+        	return "";
         }else{
 	         try {
 		         recorderFile = mRecorder.sampleFile();
@@ -819,12 +836,11 @@ public class SoundRecorder extends Activity
 	    	     Log.e("liupengfei","strOutFileNamePath = "+strOutFileNamePath);
 	           copyFileToSD(recorderFile,strOutFileNamePath);
 	           mRecorder.delete();
-	           finish();
-	         } catch(Exception ex) {  
-	    	   	
-	            return;
+	           } catch(Exception ex) {
+	            return "";
 	          }
         	}
+			return strOutFileNamePath;
     	}
 	  /*
 	   *add by liupengfei 
