@@ -85,4 +85,8 @@
 
 	<string name="recording_mode_meeting">Meeting</string>
 	<string name="recording_mode_lecture">Lecture</string>
+
+	<string name="error_incall_record">Calls cannot be recorded</string>
+    <string name="error_app_recorder_occupied">Recorder is occupied by other application.</string>
+    <string name="error_app_failed_title">Failed in recording</string>
 </resources>

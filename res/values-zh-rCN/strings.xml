@@ -55,4 +55,7 @@
     <string name="recording_mode_nomal">"普通"</string>  
 	<string name="recording_mode_meeting">会议</string>  
     <string name="recording_mode_lecture">远距录音</string>  
+	<string name="error_incall_record">通话中无法进行录音，建议通话结束后继续。</string>
+    <string name="error_app_recorder_occupied">有其他应用程序正在使用录音机</string>
+    <string name="error_app_failed_title">录音失败</string>
 </resources>

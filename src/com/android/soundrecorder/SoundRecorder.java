@@ -68,6 +68,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import android.text.TextUtils;
+import android.telecom.TelecomManager;
 
 /**
  * Calculates remaining recording time based on available disk space and
@@ -628,6 +629,10 @@ public class SoundRecorder extends Activity
         am.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
     }
 
+	private TelecomManager getTelecommService() {
+        return (TelecomManager) getSystemService(Context.TELECOM_SERVICE);
+    }
+
     /*
      * Handle the buttons.
      */
@@ -637,6 +642,11 @@ public class SoundRecorder extends Activity
 
         switch (button.getId()) {
             case R.id.recordButton:
+				TelecomManager telecomManager = getTelecommService();
+                if ((telecomManager!=null&&(telecomManager.isInCall()||telecomManager.isRinging()))){
+                    Toast.makeText(this,getString(R.string.error_incall_record),Toast.LENGTH_SHORT).show();
+                    return;
+                }
 				if (mMenu != null) {
          		   mMenu.close();
 		        }
@@ -1259,6 +1269,7 @@ public class SoundRecorder extends Activity
     public void onError(int error) {
         Resources res = getResources();
         
+		String title = res.getString(R.string.app_name);
         String message = null;
         switch (error) {
             case Recorder.SDCARD_ACCESS_ERROR:
@@ -1268,12 +1279,13 @@ public class SoundRecorder extends Activity
                 // TODO: update error message to reflect that the recording could not be
                 //       performed during a call.
             case Recorder.INTERNAL_ERROR:
-                message = res.getString(R.string.error_app_internal);
+                title= res.getString(R.string.error_app_failed_title);
+                message =res.getString(R.string.error_app_recorder_occupied);
                 break;
         }
         if (message != null) {
             new AlertDialog.Builder(this)
-                    .setTitle(R.string.app_name)
+                    .setTitle(title)
                     .setMessage(message)
                     .setPositiveButton(R.string.button_ok, null)
                     .setCancelable(false)
