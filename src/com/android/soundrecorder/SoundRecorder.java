@@ -750,7 +750,8 @@ public class SoundRecorder extends Activity
             case R.id.acceptButton:
                 mRecorder.stop();
                 saveSample();
-                finish();
+				
+                //finish();
                 break;
 			case R.id.acceptButtonSD:
                 mRecorder.stop();
@@ -760,7 +761,7 @@ public class SoundRecorder extends Activity
                     	Uri uri = null;
                         uri = addToMediaDB(new File(sdPath));
                         setResult(RESULT_OK, new Intent().setData(uri));
-                        finish();
+                       // finish();
                     } catch(Exception ex) {  // Database manipulation failure
                     	Toast.makeText(this,R.string.error_mediadb_new_record , Toast.LENGTH_SHORT).show();
                     	setResult(RESULT_CANCELED, null);
@@ -774,7 +775,7 @@ public class SoundRecorder extends Activity
                 break;
             case R.id.discardButton:
                 mRecorder.delete();
-                finish();
+               // finish();
                 break;
         }
     }
@@ -907,6 +908,15 @@ public class SoundRecorder extends Activity
             return;
         }
         setResult(RESULT_OK, new Intent().setData(uri));
+		
+		new AlertDialog.Builder(this)
+        .setTitle(R.string.app_name)
+        .setMessage(R.string.success_mediadb_new_record)
+        .setPositiveButton(R.string.button_ok, null)
+        .setCancelable(false)
+        .show();
+        mExitButtons.setVisibility(View.INVISIBLE);
+		onCreate(null);
     }
     
     /*
