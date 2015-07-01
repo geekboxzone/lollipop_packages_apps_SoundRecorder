@@ -1107,16 +1107,26 @@ public class SoundRecorder extends Activity
      */
     private void updateTimeRemaining() {
         long t = mRemainingTimeCalculator.timeRemaining();
+
+		if(t <= 10) {
+            mSampleInterrupted = true;
+            int limit = mRemainingTimeCalculator.currentLowerLimit();
+            if(limit == RemainingTimeCalculator.DISK_SPACE_LIMIT) {
+                mErrorUiMessage = getResources().getString(R.string.storage_is_full);
+            }
+            mRecorder.stop();
+            return;
+        }
             
         if (t <= 0) {
             mSampleInterrupted = true;
 
             int limit = mRemainingTimeCalculator.currentLowerLimit();
             switch (limit) {
-                case RemainingTimeCalculator.DISK_SPACE_LIMIT:
+                /*case RemainingTimeCalculator.DISK_SPACE_LIMIT:
                     mErrorUiMessage
                             = getResources().getString(R.string.storage_is_full);
-                    break;
+                    break;*/
                 case RemainingTimeCalculator.FILE_SIZE_LIMIT:
                     mErrorUiMessage
                             = getResources().getString(R.string.max_length_reached);
