@@ -842,7 +842,11 @@ public class SoundRecorder extends Activity
         }else{
 	         try {
 		         recorderFile = mRecorder.sampleFile();
-		    	   strOutFileNamePath = sdcard_dir+"/"+recorderFile.getName();
+		         File recordDir=new File(sdcard_dir, "Records");
+		         if(!recordDir.exists()){
+		        	 recordDir.mkdir();
+		         }
+		    	   strOutFileNamePath = recordDir+"/"+recorderFile.getName();
 	    	     Log.e("liupengfei","strOutFileNamePath = "+strOutFileNamePath);
 	           copyFileToSD(recorderFile,strOutFileNamePath);
 	           mRecorder.delete();
