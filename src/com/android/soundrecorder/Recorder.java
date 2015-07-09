@@ -18,11 +18,8 @@ package com.android.soundrecorder;
 
 import java.io.File;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
@@ -158,20 +155,9 @@ public class Recorder implements OnCompletionListener, OnErrorListener {
             File sampleDir = Environment.getExternalStorageDirectory();
             if (!sampleDir.canWrite()) // Workaround for broken sdcard support on the device.
                 sampleDir = new File("/sdcard/sdcard");
-            File recordDir=new File(sampleDir, "Records");
-            if(!recordDir.exists()){
-            	recordDir.mkdir();
-            }
             try {
-            	Resources res=context.getResources();
-            	long current = System.currentTimeMillis();
-                Date date = new Date(current);
-                SimpleDateFormat formatter = new SimpleDateFormat(
-                        res.getString(R.string.audio_db_title_format));
-                String title = formatter.format(date);
-                mSampleFile=new File(recordDir, SAMPLE_PREFIX+"_"+title+extension);
-                //mSampleFile = File.createTempFile(SAMPLE_PREFIX, extension, sampleDir);
-            } catch (Exception e) {
+            	mSampleFile = File.createTempFile(SAMPLE_PREFIX, extension, sampleDir);
+            } catch (IOException e) {
                 setError(SDCARD_ACCESS_ERROR);
                 return;
             }
