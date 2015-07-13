@@ -243,6 +243,7 @@ public class SoundRecorder extends Activity
 
 	public static String sdcard_dir = "/mnt/external_sd";
     private static StorageManager mStorageManager = null;
+    private boolean mRunFromLauncher=true;
     
     WakeLock mWakeLock;
     String mRequestedType = AUDIO_ANY;
@@ -291,7 +292,7 @@ public class SoundRecorder extends Activity
     private boolean HAVE_AACENCODE_FEATURE=true;
     private boolean HAVE_VORBISENC_FEATURE=false;
     private boolean HAVE_AWBENCODE_FEATURE=true;
-    private boolean MTK_AUDIO_HD_REC_SUPPORT=false;
+    private boolean AUDIO_HD_REC_SUPPORT=false;
 
     static final int HIGH = 0;
     static final int MID = 1;
@@ -318,6 +319,7 @@ public class SoundRecorder extends Activity
         Intent i = getIntent();
         if (i != null) {
             String s = i.getType();
+            mRunFromLauncher= i.getAction().equals("android.intent.action.MAIN");
             if (AUDIO_AAC.equals(s) ||AUDIO_AMR.equals(s) || AUDIO_3GPP.equals(s) || AUDIO_ANY.equals(s)
                     || ANY_ANY.equals(s)) {
                 mRequestedType = s;
@@ -404,7 +406,20 @@ public class SoundRecorder extends Activity
     public boolean onPrepareOptionsMenu(Menu menu) {
         super.onPrepareOptionsMenu(menu);
         mMenu = menu;
-
+        if (!mRunFromLauncher
+                || mRecorder.state() == Recorder.RECORDING_STATE
+                || mRecorder.state() == Recorder.PLAYING_STATE
+                ) {
+            menu.getItem(OPTIONMENU_SELECT_FORMAT).setVisible(false);
+            if (AUDIO_HD_REC_SUPPORT) {
+                menu.getItem(OPTIONMENU_SELECT_MODE).setVisible(false);
+            }
+        } else {
+            menu.getItem(OPTIONMENU_SELECT_FORMAT).setVisible(true);
+            if (AUDIO_HD_REC_SUPPORT) {
+                menu.getItem(OPTIONMENU_SELECT_MODE).setVisible(true);
+            }
+        }
         return true;
     }
 
@@ -415,7 +430,7 @@ public class SoundRecorder extends Activity
 						|| HAVE_VORBISENC_FEATURE) {
 					menu.add(0, OPTIONMENU_SELECT_FORMAT, 0,
 							getString(R.string.voice_quality));
-					if (MTK_AUDIO_HD_REC_SUPPORT) {
+					if (AUDIO_HD_REC_SUPPORT) {
 						menu.add(0, OPTIONMENU_SELECT_MODE, 0,
 								getString(R.string.recording_mode));
 					}
@@ -607,7 +622,8 @@ public class SoundRecorder extends Activity
         mAcceptButton = (Button) findViewById(R.id.acceptButton);
         mDiscardButton = (Button) findViewById(R.id.discardButton);
         mVUMeter = (VUMeter) findViewById(R.id.uvMeter);
-        
+
+
         mRecordButton.setOnClickListener(this);
         mPlayButton.setOnClickListener(this);
         mStopButton.setOnClickListener(this);
@@ -663,7 +679,7 @@ public class SoundRecorder extends Activity
                     stopAudioPlayback();
 
 		            // set the recording mode
-		            if (MTK_AUDIO_HD_REC_SUPPORT) {
+		            if (AUDIO_HD_REC_SUPPORT) {
 		                switch (mSelectedMode) {
 		                case NORMAL:
 		                    mRecorder.setAudioSamplingRate(SAMPLE_RATE_AMR);
@@ -750,8 +766,10 @@ public class SoundRecorder extends Activity
             case R.id.acceptButton:
                 mRecorder.stop();
                 saveSample();
-				
-                //finish();
+
+                if (!mRunFromLauncher) {
+                    finish();
+                }
                 break;
 			case R.id.acceptButtonSD:
                 mRecorder.stop();
@@ -761,11 +779,15 @@ public class SoundRecorder extends Activity
                     	Uri uri = null;
                         uri = addToMediaDB(new File(sdPath));
                         setResult(RESULT_OK, new Intent().setData(uri));
-                       // finish();
+                        if (!mRunFromLauncher) {
+                            finish();
+                        }
                     } catch(Exception ex) {  // Database manipulation failure
                     	Toast.makeText(this,R.string.error_mediadb_new_record , Toast.LENGTH_SHORT).show();
                     	setResult(RESULT_CANCELED, null);
-                    	finish();
+                        if (!mRunFromLauncher) {
+                            finish();
+                        }
                     	Log.e(TAG,"addToMediaDB error:"+ex.getMessage());
                         return;
                     }                    
@@ -775,7 +797,9 @@ public class SoundRecorder extends Activity
                 break;
             case R.id.discardButton:
                 mRecorder.delete();
-               // finish();
+                if (!mRunFromLauncher) {
+                    finish();
+                }
                 break;
         }
     }
@@ -905,14 +929,16 @@ public class SoundRecorder extends Activity
         }
         setResult(RESULT_OK, new Intent().setData(uri));
 		
-		new AlertDialog.Builder(this)
-        .setTitle(R.string.app_name)
-        .setMessage(R.string.success_mediadb_new_record)
-        .setPositiveButton(R.string.button_ok, null)
-        .setCancelable(false)
-        .show();
-        mExitButtons.setVisibility(View.INVISIBLE);
-		onCreate(null);
+	    if (mRunFromLauncher){
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.app_name)
+                    .setMessage(R.string.success_mediadb_new_record)
+                    .setPositiveButton(R.string.button_ok, null)
+                    .setCancelable(false)
+                    .show();
+            mExitButtons.setVisibility(View.INVISIBLE);
+            onCreate(null);
+        }
     }
     
     /*
