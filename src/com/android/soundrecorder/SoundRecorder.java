@@ -420,12 +420,12 @@ public class SoundRecorder extends Activity
                 || mRecorder.state() == Recorder.RECORDING_STATE
                 || mRecorder.state() == Recorder.PLAYING_STATE
                 ) {
-            menu.getItem(OPTIONMENU_SELECT_FORMAT).setVisible(false);
+            menu.getItem(OPTIONMENU_SELECT_FORMAT).setEnabled(false);
             if (AUDIO_HD_REC_SUPPORT) {
                 menu.getItem(OPTIONMENU_SELECT_MODE).setVisible(false);
             }
         } else {
-            menu.getItem(OPTIONMENU_SELECT_FORMAT).setVisible(true);
+            menu.getItem(OPTIONMENU_SELECT_FORMAT).setEnabled(true);
             if (AUDIO_HD_REC_SUPPORT) {
                 menu.getItem(OPTIONMENU_SELECT_MODE).setVisible(true);
             }
