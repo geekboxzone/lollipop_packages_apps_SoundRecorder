@@ -28,12 +28,16 @@ import android.media.MediaPlayer.OnErrorListener;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 
 public class Recorder implements OnCompletionListener, OnErrorListener {
+    static final String TAG = "Recorder";
     static final String SAMPLE_PREFIX = "recording";
     static final String SAMPLE_PATH_KEY = "sample_path";
     static final String SAMPLE_LENGTH_KEY = "sample_length";
-
+    public static final String  RECORD_FOLDER="Records";
     public static final int IDLE_STATE = 0;
     public static final int RECORDING_STATE = 1;
     public static final int PLAYING_STATE = 2;
@@ -150,13 +154,40 @@ public class Recorder implements OnCompletionListener, OnErrorListener {
     
      public void startRecording(int outputfileformat, int recordingType,String extension, Context context) {
         stop();
-        
         if (mSampleFile == null) {
             File sampleDir = Environment.getExternalStorageDirectory();
             if (!sampleDir.canWrite()) // Workaround for broken sdcard support on the device.
                 sampleDir = new File("/sdcard/sdcard");
+            String sampleDirPath = null;
+            if (sampleDir != null) {
+                sampleDirPath = sampleDir.getAbsolutePath() + File.separator
+                        + RECORD_FOLDER;
+            }
+            if (sampleDirPath != null) {
+                sampleDir = new File(sampleDirPath);
+            }
+            if (sampleDir != null && !sampleDir.exists()) {
+                if (!sampleDir.mkdirs()) {
+                    Log.i(TAG, "<startRecording> make dirs fail");
+                }
+            }
             try {
-            	mSampleFile = File.createTempFile(SAMPLE_PREFIX, extension, sampleDir);
+                if (null != sampleDir) {
+                    Log.i(TAG, "SR sampleDir  is:" + sampleDir.toString());
+                }
+                SimpleDateFormat simpleDateFormat = new SimpleDateFormat(
+                        "yyyyMMddHHmmss");
+                String time = simpleDateFormat.format(new Date(System
+                        .currentTimeMillis()));
+                StringBuilder stringBuilder = new StringBuilder();
+                stringBuilder.append(SAMPLE_PREFIX).append("_"+time)
+                        .append(extension);
+                String name = stringBuilder.toString();
+                mSampleFile = new File(sampleDir, name);
+                boolean result = mSampleFile.createNewFile();
+                if (result) {
+                    Log.i(TAG, "creat file success");
+                }
             } catch (IOException e) {
                 setError(SDCARD_ACCESS_ERROR);
                 return;

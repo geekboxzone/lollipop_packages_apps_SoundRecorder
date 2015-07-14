@@ -218,6 +218,7 @@ public class SoundRecorder extends Activity
     static final String RECORDER_STATE_KEY = "recorder_state";
     static final String SAMPLE_INTERRUPTED_KEY = "sample_interrupted";
     static final String MAX_FILE_SIZE_KEY = "max_file_size";
+    static final String NOT_SAVED_KEY = "not_saved";
 
     static final String AUDIO_3GPP = "audio/3gpp";
     static final String AUDIO_AMR = "audio/amr";
@@ -265,6 +266,7 @@ public class SoundRecorder extends Activity
     ImageButton mRecordButton;
     ImageButton mPlayButton;
     ImageButton mStopButton;
+    ImageButton mFileListButton;
     
     ImageView mStateLED;
     TextView mStateMessage1;
@@ -307,6 +309,14 @@ public class SoundRecorder extends Activity
     // add recording mode **
     static final String SELECTED_RECORDING_MODE = "selected_recording_mode";
     static final String BYTE_RATE = "byte_rate";
+
+    private String mDoWhat = null;
+    public static final String DOWHAT = "dowhat";
+    public static final String PLAY = "play";
+    public static final String RECORD = "record";
+    private static final String PATH = "path";
+    private static final String DURATION = "duration";
+    private static final int REQURST_FILE_LIST = 1;
 
 	private int mByteRate;
 
@@ -429,14 +439,14 @@ public class SoundRecorder extends Activity
 		if (HAVE_AACENCODE_FEATURE || HAVE_AWBENCODE_FEATURE
 						|| HAVE_VORBISENC_FEATURE) {
 					menu.add(0, OPTIONMENU_SELECT_FORMAT, 0,
-							getString(R.string.voice_quality));
+                            getString(R.string.voice_quality));
 					if (AUDIO_HD_REC_SUPPORT) {
 						menu.add(0, OPTIONMENU_SELECT_MODE, 0,
-								getString(R.string.recording_mode));
+                                getString(R.string.recording_mode));
 					}
 				}
 
-		Log.i(TAG,"onCreateOptionsMenu");
+		Log.i(TAG, "onCreateOptionsMenu");
 
         return true;
     }
@@ -610,7 +620,14 @@ public class SoundRecorder extends Activity
         mRecordButton = (ImageButton) findViewById(R.id.recordButton);
         mPlayButton = (ImageButton) findViewById(R.id.playButton);
         mStopButton = (ImageButton) findViewById(R.id.stopButton);
-        
+        mFileListButton = (ImageButton) findViewById(R.id.fileListButton);
+
+        if (mRunFromLauncher) {
+            mFileListButton.setOnClickListener(this);
+        } else {
+            mFileListButton.setVisibility(View.GONE);
+        }
+
         mStateLED = (ImageView) findViewById(R.id.stateLED);
         mStateMessage1 = (TextView) findViewById(R.id.stateMessage1);
         mStateMessage2 = (TextView) findViewById(R.id.stateMessage2);
@@ -648,7 +665,108 @@ public class SoundRecorder extends Activity
 	private TelecomManager getTelecommService() {
         return (TelecomManager) getSystemService(Context.TELECOM_SERVICE);
     }
+    private void record(){
+        mDoWhat=null;
+        mRecorder.mSampleFile=null;
+        TelecomManager telecomManager = getTelecommService();
+        if ((telecomManager!=null&&(telecomManager.isInCall()||telecomManager.isRinging()))){
+            Toast.makeText(this,getString(R.string.error_incall_record),Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (mMenu != null) {
+            mMenu.close();
+        }
+        mRemainingTimeCalculator.reset();
+        if (!Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
+            mSampleInterrupted = true;
+            mErrorUiMessage = getResources().getString(R.string.insert_sd_card);
+            updateUi();
+        } else if (!mRemainingTimeCalculator.diskSpaceAvailable()) {
+            mSampleInterrupted = true;
+            mErrorUiMessage = getResources().getString(R.string.storage_is_full);
+            updateUi();
+        } else {
+            stopAudioPlayback();
 
+            // set the recording mode
+            if (AUDIO_HD_REC_SUPPORT) {
+                switch (mSelectedMode) {
+                    case NORMAL:
+                        mRecorder.setAudioSamplingRate(SAMPLE_RATE_AMR);
+                        break;
+                    case INDOOR:
+                        mRecorder.setAudioSamplingRate(SAMPLE_RATE_AWB);
+                        break;
+                    case OUTDOOR:
+                        mRecorder.setAudioSamplingRate(SAMPLE_RATE_AAC);
+                        break;
+                    default:
+                        break;
+                }
+            }
+            int outputFileFormat = MediaRecorder.OutputFormat.AMR_NB;
+            int recordingType = MediaRecorder.AudioEncoder.AMR_NB;
+            String extension = ".amr";
+
+            if (AUDIO_AMR.equals(mRequestedType)) {
+                mRemainingTimeCalculator.setBitRate(BITRATE_AMR);
+                outputFileFormat = MediaRecorder.OutputFormat.AMR_NB;
+                recordingType = MediaRecorder.AudioEncoder.AMR_NB;
+                extension = ".amr";
+                //mRecorder.startRecording(MediaRecorder.OutputFormat.AMR_NB,MediaRecorder.AudioEncoder.AMR_NB, ".amr", this);
+            } else if (AUDIO_AWB.equals(mRequestedType)) {
+                mRemainingTimeCalculator.setBitRate(BITRATE_AWB);
+                outputFileFormat = MediaRecorder.OutputFormat.THREE_GPP;
+                recordingType = MID;
+                extension = ".awb";
+            } else if (AUDIO_AAC.equals(mRequestedType)) {
+                mRemainingTimeCalculator.setBitRate(BITRATE_AAC);
+                outputFileFormat = MediaRecorder.OutputFormat.AAC_ADTS;
+                recordingType = MediaRecorder.AudioEncoder.AAC;
+                extension = ".aac";
+            }else if (AUDIO_3GPP.equals(mRequestedType)) {
+                mRemainingTimeCalculator.setBitRate(BITRATE_3GPP);
+                switch (mSelectedFormat) {
+                    case HIGH:
+                        if (HAVE_AACENCODE_FEATURE) {
+                            mRemainingTimeCalculator.setBitRate(BITRATE_AAC);
+                            outputFileFormat = MediaRecorder.OutputFormat.THREE_GPP;
+                            recordingType = MediaRecorder.AudioEncoder.AAC;
+                            extension = ".3gpp";
+                        }
+                        break;
+
+                    case MID:
+                        mRemainingTimeCalculator.setBitRate(BITRATE_AWB);
+                        outputFileFormat = MediaRecorder.OutputFormat.THREE_GPP;
+                        recordingType = MediaRecorder.AudioEncoder.AMR_WB;
+                        extension = ".3gpp";
+                        break;
+
+                    case LOW:
+                        mRemainingTimeCalculator.setBitRate(BITRATE_AMR);
+                        outputFileFormat = MediaRecorder.OutputFormat.AMR_NB;
+                        recordingType = MediaRecorder.AudioEncoder.AMR_NB;
+                        extension = ".amr";
+                        break;
+
+                    default:
+                        break;
+                }
+            } else {
+                throw new IllegalArgumentException("Invalid output file type requested");
+            }
+
+
+            mRecorder.startRecording(outputFileFormat, recordingType,
+                    extension, this);
+
+            if (mMaxFileSize != -1) {
+                mRemainingTimeCalculator.setFileSizeLimit(
+                        mRecorder.sampleFile(), mMaxFileSize);
+            }
+        }
+    }
     /*
      * Handle the buttons.
      */
@@ -658,104 +776,7 @@ public class SoundRecorder extends Activity
 
         switch (button.getId()) {
             case R.id.recordButton:
-				TelecomManager telecomManager = getTelecommService();
-                if ((telecomManager!=null&&(telecomManager.isInCall()||telecomManager.isRinging()))){
-                    Toast.makeText(this,getString(R.string.error_incall_record),Toast.LENGTH_SHORT).show();
-                    return;
-                }
-				if (mMenu != null) {
-         		   mMenu.close();
-		        }
-                mRemainingTimeCalculator.reset();
-                if (!Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-                    mSampleInterrupted = true;
-                    mErrorUiMessage = getResources().getString(R.string.insert_sd_card);
-                    updateUi();
-                } else if (!mRemainingTimeCalculator.diskSpaceAvailable()) {
-                    mSampleInterrupted = true;
-                    mErrorUiMessage = getResources().getString(R.string.storage_is_full);
-                    updateUi();
-                } else {
-                    stopAudioPlayback();
-
-		            // set the recording mode
-		            if (AUDIO_HD_REC_SUPPORT) {
-		                switch (mSelectedMode) {
-		                case NORMAL:
-		                    mRecorder.setAudioSamplingRate(SAMPLE_RATE_AMR);
-		                    break;
-		                case INDOOR:
-		                    mRecorder.setAudioSamplingRate(SAMPLE_RATE_AWB);
-		                    break;
-		                case OUTDOOR:
-		                    mRecorder.setAudioSamplingRate(SAMPLE_RATE_AAC);
-		                    break;
-		                default:
-		                    break;
-		                }
-		            }
-					int outputFileFormat = MediaRecorder.OutputFormat.AMR_NB;
-	    	        int recordingType = MediaRecorder.AudioEncoder.AMR_NB;
-    	    	    String extension = ".amr";	
-
-                    if (AUDIO_AMR.equals(mRequestedType)) {
-                        mRemainingTimeCalculator.setBitRate(BITRATE_AMR);
-                        outputFileFormat = MediaRecorder.OutputFormat.AMR_NB;
-	    	            recordingType = MediaRecorder.AudioEncoder.AMR_NB;
-    	    	        extension = ".amr";
-                        //mRecorder.startRecording(MediaRecorder.OutputFormat.AMR_NB,MediaRecorder.AudioEncoder.AMR_NB, ".amr", this);
-                    } else if (AUDIO_AWB.equals(mRequestedType)) {
-		                mRemainingTimeCalculator.setBitRate(BITRATE_AWB);
-		                outputFileFormat = MediaRecorder.OutputFormat.THREE_GPP;
-		                recordingType = MID;
-		                extension = ".awb";
-					} else if (AUDIO_AAC.equals(mRequestedType)) {
-		                mRemainingTimeCalculator.setBitRate(BITRATE_AAC);
-		                outputFileFormat = MediaRecorder.OutputFormat.AAC_ADTS;
-		                recordingType = MediaRecorder.AudioEncoder.AAC;
-		                extension = ".aac";
-					}else if (AUDIO_3GPP.equals(mRequestedType)) {
-                        mRemainingTimeCalculator.setBitRate(BITRATE_3GPP);
-                        switch (mSelectedFormat) {
-		                case HIGH:
-		                    if (HAVE_AACENCODE_FEATURE) {
-		                        mRemainingTimeCalculator.setBitRate(BITRATE_AAC);
-		                        outputFileFormat = MediaRecorder.OutputFormat.THREE_GPP;
-		                        recordingType = MediaRecorder.AudioEncoder.AAC;
-		                        extension = ".3gpp";
-		                    }
-		                    break;
-
-		                case MID:
-		                    mRemainingTimeCalculator.setBitRate(BITRATE_AWB);
-		                    outputFileFormat = MediaRecorder.OutputFormat.THREE_GPP;
-		                    recordingType = MediaRecorder.AudioEncoder.AMR_WB;
-		                    extension = ".3gpp";
-		                    break;
-
-		                case LOW:
-		                    mRemainingTimeCalculator.setBitRate(BITRATE_AMR);
-		                    outputFileFormat = MediaRecorder.OutputFormat.AMR_NB;
-		                    recordingType = MediaRecorder.AudioEncoder.AMR_NB;
-		                    extension = ".amr";
-		                    break;
-
-		                default:
-		                    break;
-		                }
-                    } else {
-                        throw new IllegalArgumentException("Invalid output file type requested");
-                    }
-
-					
-				   mRecorder.startRecording(outputFileFormat, recordingType,
-						   extension, this);
-                    
-                    if (mMaxFileSize != -1) {
-                        mRemainingTimeCalculator.setFileSizeLimit(
-                                mRecorder.sampleFile(), mMaxFileSize);
-                    }
-                }
+                record();
                 break;
             case R.id.playButton:
                 mRecorder.startPlayback();
@@ -771,6 +792,18 @@ public class SoundRecorder extends Activity
                     finish();
                 }
                 break;
+            case R.id.fileListButton:
+                mFileListButton.setEnabled(false);
+                //leave this activity,set mSampleFile is null
+                if ((mRecorder != null) && mRecorder.sampleFile() != null) {
+                    mRecorder.mSampleFile = null;
+                    mRecorder.mSampleLength = 0;
+                }
+                Intent mIntent = new Intent();
+                mIntent.setClass(this, RecordingFileList.class);
+                startActivityForResult(mIntent, REQURST_FILE_LIST);
+                break;
+
 			case R.id.acceptButtonSD:
                 mRecorder.stop();
                 String sdPath = saveSampleSD();
@@ -812,16 +845,21 @@ public class SoundRecorder extends Activity
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             switch (mRecorder.state()) {
                 case Recorder.IDLE_STATE:
-                    if (mRecorder.sampleLength() > 0)
-                        saveSample();
+                    if (mRecorder.sampleLength() > 0){
+                        if (!(mDoWhat!=null&&mDoWhat.equals(PLAY))){
+                            saveSample();
+                        }
+                    }
                     finish();
                     break;
                 case Recorder.PLAYING_STATE:
                     mRecorder.stop();
-                    saveSample();
+                    if (mRecorder.mSampleLength>0&&mDoWhat==null){
+                        saveSample();
+                    }
                     break;
                 case Recorder.RECORDING_STATE:
-                    mRecorder.clear();
+                    mRecorder.stop();
                     break;
             }
             return true;
@@ -883,7 +921,7 @@ public class SoundRecorder extends Activity
 	   */
 		public static boolean isMountSD(){
 			String status = mStorageManager.getVolumeState(sdcard_dir);
-			Log.e("liupengfei","isMountSD()--status-->" + status);
+            Log.e("liupengfei","isMountSD()--status-->" + status);
 			if (status.equals(Environment.MEDIA_MOUNTED)) {
 				return true;
 			}
@@ -906,7 +944,7 @@ public class SoundRecorder extends Activity
             length = myInput.read(buffer);
         }
         
-        myOutput.flush();  
+        myOutput.flush();
         myInput.close();  
         myOutput.close();        
     }	
@@ -930,14 +968,23 @@ public class SoundRecorder extends Activity
         setResult(RESULT_OK, new Intent().setData(uri));
 		
 	    if (mRunFromLauncher){
-            new AlertDialog.Builder(this)
+            /*new AlertDialog.Builder(this)
                     .setTitle(R.string.app_name)
                     .setMessage(R.string.success_mediadb_new_record)
                     .setPositiveButton(R.string.button_ok, null)
                     .setCancelable(false)
+                    .show();*/
+            Toast.makeText(SoundRecorder.this,
+                    R.string.success_mediadb_new_record, Toast.LENGTH_SHORT)
                     .show();
             mExitButtons.setVisibility(View.INVISIBLE);
-            onCreate(null);
+            //onCreate(null);
+            mRecorder = new Recorder();
+            mRecorder.setOnStateChangedListener(this);
+            mRemainingTimeCalculator = new RemainingTimeCalculator();
+            mDoWhat = null;
+            mVUMeter.setRecorder(mRecorder);
+            updateUi();
         }
     }
     
@@ -1179,12 +1226,12 @@ public class SoundRecorder extends Activity
             timeStr = String.format(res.getString(R.string.sec_available), t);
         else if (t < 540)
             // timeStr = String.format(res.getString(R.string.min_available), t/60 + 1);
-            timeStr = String.format(res.getString(R.string.min_sec_available), t/60 ,t%60);
+            timeStr = String.format(res.getString(R.string.min_sec_available), t/60, t % 60);
 
-        
+
         mStateMessage1.setText(timeStr);
     }
-    
+
     /**
      * Shows/hides the appropriate child views for the new state.
      */
@@ -1201,6 +1248,9 @@ public class SoundRecorder extends Activity
                     mStopButton.setEnabled(false);
                     mStopButton.setFocusable(false);
                     mRecordButton.requestFocus();
+
+                    mFileListButton.setEnabled(true);
+                    mFileListButton.setFocusable(true);
                     
                     mStateMessage1.setVisibility(View.INVISIBLE);
                     mStateLED.setVisibility(View.INVISIBLE);
@@ -1224,7 +1274,9 @@ public class SoundRecorder extends Activity
                     mStateLED.setVisibility(View.INVISIBLE);                        
                     mStateMessage2.setVisibility(View.INVISIBLE);
 
-                    mExitButtons.setVisibility(View.VISIBLE);
+                    if (!(mDoWhat!=null&&mDoWhat.equals(PLAY))){
+                        mExitButtons.setVisibility(View.VISIBLE);
+                    }
                     mVUMeter.setVisibility(View.INVISIBLE);
 
                     mStateProgressBar.setVisibility(View.INVISIBLE);
@@ -1251,7 +1303,10 @@ public class SoundRecorder extends Activity
                 mPlayButton.setFocusable(false);
                 mStopButton.setEnabled(true);
                 mStopButton.setFocusable(true);
-                
+
+                mFileListButton.setEnabled(false);
+                mFileListButton.setFocusable(false);
+
                 mStateMessage1.setVisibility(View.VISIBLE);
                 mStateLED.setVisibility(View.VISIBLE);
                 mStateLED.setImageResource(R.drawable.recording_led);
@@ -1279,7 +1334,10 @@ public class SoundRecorder extends Activity
                 mStateLED.setVisibility(View.INVISIBLE);
                 mStateMessage2.setVisibility(View.INVISIBLE);
                 
-                mExitButtons.setVisibility(View.VISIBLE);
+
+                if (!(mDoWhat!=null&&mDoWhat.equals(PLAY))){
+                    mExitButtons.setVisibility(View.VISIBLE);
+                }
                 mVUMeter.setVisibility(View.INVISIBLE);
 
                 mStateProgressBar.setVisibility(View.VISIBLE);
@@ -1288,7 +1346,7 @@ public class SoundRecorder extends Activity
 
                 break;
         }
-        
+
         updateTimerView();   
         mVUMeter.invalidate();
     }
@@ -1337,5 +1395,43 @@ public class SoundRecorder extends Activity
                     .setCancelable(false)
                     .show();
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (RESULT_OK == resultCode) {
+            mFileListButton.setEnabled(true);
+            Intent intent = data;
+            Bundle bundle = intent.getExtras();
+            if (bundle != null) {
+                mDoWhat = bundle.getString(DOWHAT);
+                if (mDoWhat != null) {
+                    if (mDoWhat.equals(RECORD)) {
+                        record();
+                    } else if (mDoWhat.equals(PLAY)) {
+                        // playing hide the save & cancel
+                        // set the recording file
+                        String path = null;
+                        if (intent.getExtras() != null
+                                && intent.getExtras().getString(PATH) != null) {
+                            path = intent.getExtras().getString(PATH);
+                            File file = new File(path);
+                            mRecorder.mSampleFile = file;
+                            mRecorder.mSampleLength = intent.getExtras()
+                                    .getInt(DURATION) / 1000;
+                            mRecorder.startPlayback();
+                        }
+                    } else {
+                        // init the activity
+                        mRecorder = new Recorder();
+                        mRecorder.setOnStateChangedListener(this);
+                        mRemainingTimeCalculator = new RemainingTimeCalculator();
+                        mDoWhat = null;
+                        mVUMeter.setRecorder(mRecorder);
+                    }
+                }
+            }
+        }
+        updateUi();
     }
 }

@@ -43,5 +43,9 @@
                  <action android:name="android.provider.MediaStore.RECORD_SOUND" />
             </intent-filter>
         </activity>
+        <activity android:name="RecordingFileList" android:label="@string/recording_file_list"
+            android:configChanges="orientation|keyboardHidden|mnc|mcc"
+            android:theme="@style/Theme.SoundRecorder">
+        </activity>
     </application>
 </manifest>
