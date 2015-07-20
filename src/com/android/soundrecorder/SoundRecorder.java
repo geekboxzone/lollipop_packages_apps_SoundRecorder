@@ -1383,8 +1383,7 @@ public class SoundRecorder extends Activity
                 // TODO: update error message to reflect that the recording could not be
                 //       performed during a call.
             case Recorder.INTERNAL_ERROR:
-                title= res.getString(R.string.error_app_failed_title);
-                message =res.getString(R.string.error_app_recorder_occupied);
+                message = res.getString(R.string.error_app_internal);
                 break;
         }
         if (message != null) {
