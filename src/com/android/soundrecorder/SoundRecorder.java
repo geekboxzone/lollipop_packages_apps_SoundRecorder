@@ -666,6 +666,7 @@ public class SoundRecorder extends Activity
         return (TelecomManager) getSystemService(Context.TELECOM_SERVICE);
     }
     private void record(){
+        mRecorder.delete();
         mDoWhat=null;
         mRecorder.mSampleFile=null;
         TelecomManager telecomManager = getTelecommService();
@@ -958,6 +959,7 @@ public class SoundRecorder extends Activity
             return;
         Uri uri = null;
         try {
+            mRecorder.sampleFileDelSuffix();
             uri = this.addToMediaDB(mRecorder.sampleFile());
         } catch(UnsupportedOperationException ex) {  // Database manipulation failure
             return;
@@ -1108,11 +1110,17 @@ public class SoundRecorder extends Activity
         Resources res = getResources();
         ContentValues cv = new ContentValues();
         long current = System.currentTimeMillis();
+		Log.d("ljh","----------------------------------");
+		Log.d("ljh","current="+current);
+		Log.d("ljh","----------------------------------");
         long modDate = file.lastModified();
         Date date = new Date(current);
         SimpleDateFormat formatter = new SimpleDateFormat(
                 res.getString(R.string.audio_db_title_format));
         String title = formatter.format(date);
+		Log.d("ljh","----------------------------------");
+		Log.d("ljh","title="+title+",file.getAbsolutePath()="+file.getAbsolutePath());
+		Log.d("ljh","----------------------------------");
         long sampleLengthMillis = mRecorder.sampleLength() * 1000L;
 
         // Lets label the recorded audio file as NON-MUSIC so that the file
