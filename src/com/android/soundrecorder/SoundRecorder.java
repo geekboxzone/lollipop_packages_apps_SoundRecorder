@@ -812,6 +812,7 @@ public class SoundRecorder extends Activity
                     try {
                     	Uri uri = null;
                         uri = addToMediaDB(new File(sdPath));
+						mRecorder.delete();
                         setResult(RESULT_OK, new Intent().setData(uri));
                         if (!mRunFromLauncher) {
                             finish();
@@ -905,11 +906,14 @@ public class SoundRecorder extends Activity
         	return "";
         }else{
 	         try {
+				 mRecorder.sampleFileDelSuffix();
 		         recorderFile = mRecorder.sampleFile();
-				 strOutFileNamePath = sdcard_dir+"/"+recorderFile.getName();
-	    	     Log.e("liupengfei","strOutFileNamePath = "+strOutFileNamePath);
-	           copyFileToSD(recorderFile,strOutFileNamePath);
-	           mRecorder.delete();
+				 strOutFileNamePath = sdcard_dir+"/"+Recorder.RECORD_FOLDER+"/"+recorderFile.getName();
+                 File outDir=new File(sdcard_dir+"/"+Recorder.RECORD_FOLDER);
+                 if (!outDir.exists()){
+                     outDir.mkdirs();
+                 }
+                 copyFileToSD(recorderFile,strOutFileNamePath);
 	           } catch(Exception ex) {
 	            return "";
 	          }
