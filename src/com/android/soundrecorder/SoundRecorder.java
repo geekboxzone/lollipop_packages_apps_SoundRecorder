@@ -666,7 +666,9 @@ public class SoundRecorder extends Activity
         return (TelecomManager) getSystemService(Context.TELECOM_SERVICE);
     }
     private void record(){
-        mRecorder.delete();
+        if (!(mDoWhat!=null&&mDoWhat.equals(PLAY))){
+            mRecorder.delete();
+        }
         mDoWhat=null;
         mRecorder.mSampleFile=null;
         TelecomManager telecomManager = getTelecommService();
@@ -1289,6 +1291,9 @@ public class SoundRecorder extends Activity
                     if (!(mDoWhat!=null&&mDoWhat.equals(PLAY))){
                         mExitButtons.setVisibility(View.VISIBLE);
                     }
+					else{
+                        mExitButtons.setVisibility(View.INVISIBLE);
+                    }
                     mVUMeter.setVisibility(View.INVISIBLE);
 
                     mStateProgressBar.setVisibility(View.INVISIBLE);
@@ -1349,6 +1354,9 @@ public class SoundRecorder extends Activity
 
                 if (!(mDoWhat!=null&&mDoWhat.equals(PLAY))){
                     mExitButtons.setVisibility(View.VISIBLE);
+                }
+				else{
+                    mExitButtons.setVisibility(View.INVISIBLE);
                 }
                 mVUMeter.setVisibility(View.INVISIBLE);
 
