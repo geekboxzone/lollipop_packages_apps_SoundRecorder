@@ -329,7 +329,8 @@ public class SoundRecorder extends Activity
         Intent i = getIntent();
         if (i != null) {
             String s = i.getType();
-            mRunFromLauncher= i.getAction().equals("android.intent.action.MAIN");
+            //mRunFromLauncher= i.getAction().equals("android.intent.action.MAIN");
+            mRunFromLauncher= "android.intent.action.MAIN".equals(i.getAction());
             if (AUDIO_AAC.equals(s) ||AUDIO_AMR.equals(s) || AUDIO_3GPP.equals(s) || AUDIO_ANY.equals(s)
                     || ANY_ANY.equals(s)) {
                 mRequestedType = s;
